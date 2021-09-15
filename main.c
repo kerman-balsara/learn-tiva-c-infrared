@@ -104,7 +104,7 @@ int main(void)
         {
             previousClockTicks = now;
         }
-        else if (now - previousClockTicks > 200) // Wait 200ms to receive all data
+        else if (previousClockTicks && now - previousClockTicks > 200) // Wait 200ms to receive all data
         {
             show_result();
             initTimerValueArr();
