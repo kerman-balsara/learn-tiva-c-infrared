@@ -18,12 +18,21 @@
 #include "uartrtns.h"
 #include "driverlib/sysctl.h"
 
+// As per datasheet (https://techdocs.altium.com/display/FPGA/NEC+Infrared+Transmission+Protocol), once a remote control button is pressed,
+// we should receive a message frame in ~67.5ms.
+// We wait 70ms to receive all data. 
+#define SENSOR_DATA_TIME     70       // Wait 70ms to receive all data from the sensor
+
 // Provide for receiving 64 bits of data
 #define MAX_DATA 64
 static volatile uint32_t TimerValueArr[64];
 static volatile uint32_t TimerValueIdx;
 
 static volatile int32_t CurrentTicks;
+// The following variables are used to determine the time to wait to receive all data. Testing reveals it to be 68ms. The code waits 70ms. See
+// SENSOR_DATA_TIME above.
+static volatile int32_t FirstTicks;
+static volatile int32_t LastTicks;
 
 typedef struct
 {
@@ -104,7 +113,7 @@ int main(void)
         {
             previousClockTicks = now;
         }
-        else if (previousClockTicks && now - previousClockTicks > 200) // Wait 200ms to receive all data
+        else if (previousClockTicks && now - previousClockTicks > SENSOR_DATA_TIME)
         {
             show_result();
             initTimerValueArr();
@@ -177,6 +186,10 @@ static uint16_t show_nec_result(const uint32_t timer_data_arr[])
         char mesg[40 + 1];
         sprintf(mesg, "\n\r%s\n\r", button);
         printString(mesg);
+
+        // Debug code to determine time to wait to receive a message frame. Testing reveals it to be ~68ms
+//        sprintf(mesg, "\n\r%d\n\r", abs(LastTicks - FirstTicks));
+//        printString(mesg);
         return(1);
     }
     
@@ -291,7 +304,8 @@ static uint32_t mypow(const uint32_t i)
     }
     
     return(result);
-}    
+}
+
 // Set up UART0
 static void setup_uart0(void)
 {
@@ -427,7 +441,13 @@ void WTIMER0A_Handler(void)
 {
     WTIMER0->ICR = (1 << 2);
     if (TimerValueIdx < MAX_DATA)
+    {
+        if (TimerValueIdx == 0)
+            FirstTicks = CurrentTicks;
+        LastTicks = CurrentTicks;
+
         TimerValueArr[TimerValueIdx++] = WTIMER0->TAR;
+    }
 }
 
 static void setup_systick(void)
@@ -470,5 +490,3 @@ void SysTick_Handler(void)
 {
     CurrentTicks++;
 }
-
-
